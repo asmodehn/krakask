@@ -11,6 +11,7 @@ For further information type
 
 import time
 import datetime
+import dpcontracts
 from functools import wraps
 
 import pandas as pd
@@ -87,7 +88,7 @@ def callratelimiter(query_type):
                             print('attempt: {} |'.format(
                                 str(attempt).zfill(3)), err)
                             attempt += 1
-                            time.sleep(self.retry)
+                            await trio.sleep(self.retry)
                             self._decrease_api_counter()
                             continue
 
@@ -107,6 +108,7 @@ class KrakenAPIError(Exception):
 
 class CallRateLimitError(Exception):
     pass
+
 
 
 class KrakenAPI(object):
@@ -176,6 +178,8 @@ class KrakenAPI(object):
         self.retry = retry
         self.crl_sleep = crl_sleep
 
+    @dpcontracts.ensure("first result is a datetime", lambda args, result: isinstance(result, tuple) and isinstance(result[0], datetime.datetime))
+    @dpcontracts.ensure("second result is an int", lambda args, result: isinstance(result, tuple) and isinstance(result[1], int))
     @crl_sleep
     @callratelimiter('other')
     async def get_server_time(self):
