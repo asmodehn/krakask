@@ -7,14 +7,9 @@ import hypothesis
 
 
 @pytest.fixture
-def mock_srv():
-    return "127.0.0.1"
-
-
-@pytest.fixture
 def mocket(mock_srv):
     """
-    fixture generating data based on  hypothesis strategies
+    fixture generating data based on hypothesis strategies
     :param mocket:
     :return:
     """
@@ -26,11 +21,8 @@ def mocket(mock_srv):
 
 
 @pytest.fixture
-def api(mock_srv):
-    """A flaky webserver with pathological behavior for testing purposes"""
+def api():
     api = API()
-    # to make sure we can never actually reach out
-    api.uri = 'http://' + mock_srv
     return api
 
 

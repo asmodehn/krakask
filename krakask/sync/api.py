@@ -31,7 +31,7 @@ import base64
 try:
   from . import __version__, __url__
 except ImportError:
-    from .._version import __version__, __url__
+    from krakask._version import __version__, __url__
 
 
 class API(object):
@@ -144,40 +144,12 @@ class API(object):
 
         return self.response.json(**self._json_options)
 
-    def _blocking_query(self, urlpath, data, headers=None, timeout=None):
-        """ Low-level query handling.
+    def _get_url_path(self, method, private=False):
+        visibility = 'private' if private else 'public'
+        return '/' + self.apiversion + '/' + visibility + '/' + method
 
-        .. note::
-           Use :py:meth:`query_private` or :py:meth:`query_public`
-           unless you have a good reason not to.
-
-        :param urlpath: API URL path sans host
-        :type urlpath: str
-        :param data: API request parameters
-        :type data: dict
-        :param headers: (optional) HTTPS headers
-        :type headers: dict
-        :param timeout: (optional) if not ``None``, a :py:exc:`requests.HTTPError`
-                        will be thrown after ``timeout`` seconds if a response
-                        has not been received
-        :type timeout: int or float
-        :returns: :py:meth:`requests.Response.json`-deserialised Python object
-        :raises: :py:exc:`requests.HTTPError`: if response status not successful
-
-        """
-        if data is None:
-            data = {}
-        if headers is None:
-            headers = {}
-
-        url = self.uri + urlpath
-
-        self.response = self.session.post(url, data=data, headers=headers, timeout=timeout)
-
-        if self.response.status_code not in (200, 201, 202):
-            self.response.raise_for_status()
-
-        return self.response.json(**self._json_options)
+    def get_url(self, method, private=False):
+        return self.uri + self._get_url_path(method, private=private)
 
     def query_public(self, method, data=None, timeout=None):
         """ Performs an API query that does not require a valid key/secret pair.
@@ -196,7 +168,7 @@ class API(object):
         if data is None:
             data = {}
 
-        urlpath = '/' + self.apiversion + '/public/' + method
+        urlpath = self._get_url_path(method, private=False)
 
         return self._query(urlpath, data, timeout = timeout)
 
@@ -222,7 +194,7 @@ class API(object):
 
         data['nonce'] = self._nonce()
 
-        urlpath = '/' + self.apiversion + '/private/' + method
+        urlpath = self._get_url_path(method, private=True)
 
         headers = {
             'API-Key': self.key,
@@ -263,11 +235,10 @@ class API(object):
 
 if __name__ == '__main__':
     # Basic read-only test of the interface (using actual exchange - see tests for using mock instead)
-    import trio
     kraken_api = API()
 
     # basic example of API usage
-    res = kraken_api.query_public, 'Time'
+    res = kraken_api.query_public('Time')
 
     # check for error
     if len(res['error']) > 0:
