@@ -8,6 +8,10 @@ asks = "*"
 trio = "*"
 pandas = "*"
 "137447e" = {editable = true, path = "./../contracts"}
+responses = "*"
+pytest = "*"
+mocket = "*"
+hypothesis = "*"
 
 [dev-packages]
 

@@ -17,7 +17,7 @@
 
 """Kraken.com cryptocurrency Exchange API."""
 
-import asks
+import requests
 
 # private query nonce
 import time
@@ -31,32 +31,10 @@ import base64
 try:
   from . import __version__, __url__
 except ImportError:
-    from _version import __version__, __url__
+    from .._version import __version__, __url__
 
 
-class AsyncApi(type):
-    """
-    Meta class for Apis, allowing to use them both with curio and with trio.
-    """
-
-    def __new__(meta, name, bases, dct):
-        print('-----------------------------------')
-        print(f"Allocating memory for class {name}")
-        print(meta)
-        print(bases)
-        print(dct)
-
-        if '__asynclib__' in dct:
-            #using async requests
-            import multio
-            multio.init(dct['__asynclib__'])
-            dct['asynclib'] = multio.asynclib
-        # no __async__ member implies sync blocking
-
-        return super(AsyncApi, meta).__new__(meta, name, bases, dct)
-
-
-class API(metaclass=AsyncApi):
+class API(object):
     """ Maintains a single session between this machine and Kraken.
 
     Specifying a key/secret pair is optional. If not specified, private
@@ -74,8 +52,6 @@ class API(metaclass=AsyncApi):
 
     """
 
-    __asynclib__ = 'trio'
-
     def __init__(self, key='', secret=''):
         """ Create an object with authentication information.
 
@@ -91,7 +67,7 @@ class API(metaclass=AsyncApi):
         self.uri = 'https://api.kraken.com'
         self.apiversion = '0'
 
-        self.session = asks.Session()
+        self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'krakask/' + __version__ + ' (+' + __url__ + ')'
         })
@@ -133,7 +109,7 @@ class API(metaclass=AsyncApi):
             self.secret = f.readline().strip()
         return
 
-    async def _query(self, urlpath, data, headers=None, timeout=None):
+    def _query(self, urlpath, data, headers=None, timeout=None):
         """ Low-level query handling.
 
         .. note::
@@ -161,14 +137,49 @@ class API(metaclass=AsyncApi):
 
         url = self.uri + urlpath
 
-        self.response = await self.session.post(url, data = data, headers = headers, timeout = timeout)
+        self.response = self.session.post(url, data = data, headers = headers, timeout = timeout)
 
         if self.response.status_code not in (200, 201, 202):
             self.response.raise_for_status()
 
         return self.response.json(**self._json_options)
 
-    async def query_public(self, method, data=None, timeout=None):
+    def _blocking_query(self, urlpath, data, headers=None, timeout=None):
+        """ Low-level query handling.
+
+        .. note::
+           Use :py:meth:`query_private` or :py:meth:`query_public`
+           unless you have a good reason not to.
+
+        :param urlpath: API URL path sans host
+        :type urlpath: str
+        :param data: API request parameters
+        :type data: dict
+        :param headers: (optional) HTTPS headers
+        :type headers: dict
+        :param timeout: (optional) if not ``None``, a :py:exc:`requests.HTTPError`
+                        will be thrown after ``timeout`` seconds if a response
+                        has not been received
+        :type timeout: int or float
+        :returns: :py:meth:`requests.Response.json`-deserialised Python object
+        :raises: :py:exc:`requests.HTTPError`: if response status not successful
+
+        """
+        if data is None:
+            data = {}
+        if headers is None:
+            headers = {}
+
+        url = self.uri + urlpath
+
+        self.response = self.session.post(url, data=data, headers=headers, timeout=timeout)
+
+        if self.response.status_code not in (200, 201, 202):
+            self.response.raise_for_status()
+
+        return self.response.json(**self._json_options)
+
+    def query_public(self, method, data=None, timeout=None):
         """ Performs an API query that does not require a valid key/secret pair.
 
         :param method: API method name
@@ -187,9 +198,9 @@ class API(metaclass=AsyncApi):
 
         urlpath = '/' + self.apiversion + '/public/' + method
 
-        return await self._query(urlpath, data, timeout = timeout)
+        return self._query(urlpath, data, timeout = timeout)
 
-    async def query_private(self, method, data=None, timeout=None):
+    def query_private(self, method, data=None, timeout=None):
         """ Performs an API query that requires a valid key/secret pair.
 
         :param method: API method name
@@ -218,7 +229,7 @@ class API(metaclass=AsyncApi):
             'API-Sign': self._sign(data, urlpath)
         }
 
-        return await self._query(urlpath, data, headers, timeout = timeout)
+        return self._query(urlpath, data, headers, timeout = timeout)
 
     def _nonce(self):
         """ Nonce counter.
@@ -256,8 +267,7 @@ if __name__ == '__main__':
     kraken_api = API()
 
     # basic example of API usage
-    # asynclib has been create by the meta class
-    res = kraken_api.asynclib.run(kraken_api.query_public, 'Time')
+    res = kraken_api.query_public, 'Time'
 
     # check for error
     if len(res['error']) > 0:
